@@ -25,18 +25,28 @@
 	// Movement animation
 	const MOVE_DURATION = 120; // ms
 
-	// Key repeat handling
-	let heldKey: string | null = $state(null);
-	let keyRepeatDelayTimer: number | null = null;
-	let keyRepeatIntervalTimer: number | null = null;
-	const KEY_REPEAT_DELAY = 180;
-	const KEY_REPEAT_INTERVAL = 130; // Must be >= MOVE_DURATION to avoid buffering cascades
+	// Track which direction keys are currently held (not reactive — plain Set)
+	const keysDown = new Set<string>();
+	// Time the current direction has been held (for repeat delay)
+	let heldDirection: string | null = null;
+	let holdStartTime = 0;
+	const KEY_REPEAT_DELAY = 200; // ms before held key starts repeating
 
 	// Animation loop
 	let animFrameId: number;
 	let lastAnimTime = 0;
 	const SPRITE_FRAME_INTERVAL = 150; // ms between sprite frame changes
 	let spriteTimer = 0;
+
+	function getHeldDirection(): 'up' | 'down' | 'left' | 'right' | null {
+		// Priority: most recently pressed direction that's still held
+		// We just pick whichever is in the set; for simplicity check in order
+		if (keysDown.has('right')) return 'right';
+		if (keysDown.has('left')) return 'left';
+		if (keysDown.has('down')) return 'down';
+		if (keysDown.has('up')) return 'up';
+		return null;
+	}
 
 	function gameLoop(timestamp: number) {
 		if (!lastAnimTime) lastAnimTime = timestamp;
@@ -50,6 +60,18 @@
 				m.moveProgress = Math.min(1, m.moveProgress + dt / MOVE_DURATION);
 				if (m.moveProgress >= 1) {
 					completeMuncherMove();
+				}
+			}
+
+			// Handle held-key repeat: if muncher is idle and a key is held past the delay, move again
+			if (
+				!gameState.muncher.isMoving &&
+				!gameState.muncher.isEating &&
+				!gameState.muncher.isDying
+			) {
+				const dir = getHeldDirection();
+				if (dir && dir === heldDirection && timestamp - holdStartTime > KEY_REPEAT_DELAY) {
+					moveMuncher(dir);
 				}
 			}
 
@@ -82,64 +104,36 @@
 		animFrameId = requestAnimationFrame(gameLoop);
 		return () => {
 			cancelAnimationFrame(animFrameId);
-			stopKeyRepeat();
+			keysDown.clear();
+			heldDirection = null;
 		};
 	});
 
-	function startKeyRepeat(direction: 'up' | 'down' | 'left' | 'right') {
-		stopKeyRepeat();
-		keyRepeatDelayTimer = window.setTimeout(() => {
-			keyRepeatDelayTimer = null;
-			keyRepeatIntervalTimer = window.setInterval(() => {
-				// Only move if muncher is idle — never buffer from key repeat
-				if (!gameState.muncher.isMoving && !gameState.muncher.isEating) {
-					moveMuncher(direction);
-				}
-			}, KEY_REPEAT_INTERVAL);
-		}, KEY_REPEAT_DELAY);
-	}
-
-	function stopKeyRepeat() {
-		if (keyRepeatDelayTimer) {
-			clearTimeout(keyRepeatDelayTimer);
-			keyRepeatDelayTimer = null;
-		}
-		if (keyRepeatIntervalTimer) {
-			clearInterval(keyRepeatIntervalTimer);
-			keyRepeatIntervalTimer = null;
-		}
-		heldKey = null;
-	}
-
 	function handleKeydown(e: KeyboardEvent) {
-		if (e.repeat) return; // We handle repeat ourselves
 		initAudio();
 
+		const dirMap: Record<string, 'up' | 'down' | 'left' | 'right'> = {
+			ArrowUp: 'up',
+			ArrowDown: 'down',
+			ArrowLeft: 'left',
+			ArrowRight: 'right'
+		};
+
+		const direction = dirMap[e.key];
+		if (direction) {
+			e.preventDefault();
+			if (!keysDown.has(direction)) {
+				// Fresh press — move immediately and start tracking hold time
+				keysDown.add(direction);
+				heldDirection = direction;
+				holdStartTime = performance.now();
+				moveMuncher(direction);
+			}
+			// If already in keysDown, it's a native repeat — ignore
+			return;
+		}
+
 		switch (e.key) {
-			case 'ArrowUp':
-				e.preventDefault();
-				moveMuncher('up');
-				heldKey = 'up';
-				startKeyRepeat('up');
-				break;
-			case 'ArrowDown':
-				e.preventDefault();
-				moveMuncher('down');
-				heldKey = 'down';
-				startKeyRepeat('down');
-				break;
-			case 'ArrowLeft':
-				e.preventDefault();
-				moveMuncher('left');
-				heldKey = 'left';
-				startKeyRepeat('left');
-				break;
-			case 'ArrowRight':
-				e.preventDefault();
-				moveMuncher('right');
-				heldKey = 'right';
-				startKeyRepeat('right');
-				break;
 			case ' ':
 			case 'Enter':
 				e.preventDefault();
@@ -154,14 +148,21 @@
 	}
 
 	function handleKeyup(e: KeyboardEvent) {
-		const keyMap: Record<string, string> = {
+		const dirMap: Record<string, string> = {
 			ArrowUp: 'up',
 			ArrowDown: 'down',
 			ArrowLeft: 'left',
 			ArrowRight: 'right'
 		};
-		if (keyMap[e.key] === heldKey) {
-			stopKeyRepeat();
+		const direction = dirMap[e.key];
+		if (direction) {
+			keysDown.delete(direction);
+			// If the released key was the held direction, update
+			if (heldDirection === direction) {
+				const next = getHeldDirection();
+				heldDirection = next;
+				holdStartTime = performance.now();
+			}
 		}
 	}
 

@@ -455,9 +455,7 @@ export function moveMuncher(direction: 'up' | 'down' | 'left' | 'right'): void {
 	if (screen !== 'playing' || isPaused || muncher.isDying) return;
 
 	if (muncher.isMoving || muncher.isEating) {
-		// Buffer the move
-		moveBuffer = direction;
-		return;
+		return; // Already in motion — game loop will handle repeat if key is held
 	}
 
 	const deltas: Record<string, [number, number]> = {
@@ -497,13 +495,6 @@ export function moveMuncher(direction: 'up' | 'down' | 'left' | 'right'): void {
 export function completeMuncherMove(): void {
 	muncher.isMoving = false;
 	muncher.moveProgress = 1;
-
-	// Process buffered move
-	if (moveBuffer) {
-		const buf = moveBuffer;
-		moveBuffer = null;
-		moveMuncher(buf);
-	}
 }
 
 export function munchCell(): void {
