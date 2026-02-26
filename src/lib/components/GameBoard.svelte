@@ -30,7 +30,7 @@
 	let keyRepeatDelayTimer: number | null = null;
 	let keyRepeatIntervalTimer: number | null = null;
 	const KEY_REPEAT_DELAY = 180;
-	const KEY_REPEAT_INTERVAL = 100;
+	const KEY_REPEAT_INTERVAL = 130; // Must be >= MOVE_DURATION to avoid buffering cascades
 
 	// Animation loop
 	let animFrameId: number;
@@ -40,7 +40,7 @@
 
 	function gameLoop(timestamp: number) {
 		if (!lastAnimTime) lastAnimTime = timestamp;
-		const dt = timestamp - lastAnimTime;
+		const dt = Math.min(timestamp - lastAnimTime, 50); // Cap dt to avoid skipping on tab switch/lag
 		lastAnimTime = timestamp;
 
 		if (!gameState.isPaused) {
@@ -91,7 +91,10 @@
 		keyRepeatDelayTimer = window.setTimeout(() => {
 			keyRepeatDelayTimer = null;
 			keyRepeatIntervalTimer = window.setInterval(() => {
-				moveMuncher(direction);
+				// Only move if muncher is idle — never buffer from key repeat
+				if (!gameState.muncher.isMoving && !gameState.muncher.isEating) {
+					moveMuncher(direction);
+				}
 			}, KEY_REPEAT_INTERVAL);
 		}, KEY_REPEAT_DELAY);
 	}
