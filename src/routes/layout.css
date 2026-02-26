@@ -1,0 +1,37 @@
+@import 'tailwindcss';
+
+@font-face {
+	font-family: 'Press Start 2P';
+	font-style: normal;
+	font-weight: 400;
+	font-display: swap;
+	src: url('/fonts/press-start-2p.woff2') format('woff2');
+}
+
+:root {
+	--game-blue: #00008b;
+	--game-pink: #ff00ff;
+	--game-green: #00ff00;
+	--game-red: #ff0000;
+	--game-white: #ffffff;
+	--game-black: #000000;
+}
+
+* {
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+
+html,
+body {
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+	background-color: var(--game-black);
+	font-family: 'Press Start 2P', monospace;
+	image-rendering: pixelated;
+	-webkit-user-select: none;
+	user-select: none;
+	cursor: default;
+}
